@@ -1,0 +1,35 @@
+name: WhooshingWell
+main: me.ellbristow.WhooshingWell.WhooshingWell
+version: 0.0.1
+author: ellbristow
+dev-url: http://dev.bukkit.org/server-mods/whooshingwell
+description: >
+             Jump in to the Whooshing Well and be whisked away to another world!
+commands:
+  ww:
+    description: Get WhooshingWell info
+    permission: whooshingwell.use
+permissions:
+  whooshingwell.*:
+    description: all permissions
+    children:
+      whooshingwell.create: true
+      whooshingwell.use: true
+  whooshingwell.create:
+    description: Can create a Whooshing Well
+  whooshingwell.destroy:
+    description: Can destroy a Whooshing Well
+  whooshingwell.use:
+    description: Can use a Whooshing Well
+  whooshingwell.world.*:
+    description: Can create and delete worlds
+    children:
+      whooshingwell.world.create: true
+      whooshingwell.world.delete: true
+      whooshingwell.world.list: true
+  whooshingwell.world.create:
+    description: Can create a new world
+  whooshingwell.world.delete:
+    description: Can delete a world
+  whooshingwell.world.list:
+    description: Can see the world list
