@@ -240,7 +240,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     @EventHandler (priority = EventPriority.NORMAL)
     public void onPortalJump (PlayerPortalEvent event) {
         if (!event.isCancelled()) {
-            if (event.getCause().equals(TeleportCause.END_PORTAL)) {
+            TeleportCause cause = event.getCause();
+            if (cause.equals(TeleportCause.END_PORTAL)) {
                 Location fromLoc = event.getFrom();
                 if (isWW(fromLoc)) {
                     event.setCancelled(true);
@@ -255,6 +256,28 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                     }
                     togglePortalFromJump(fromLoc);
+                } else {
+                    String defaultWorld = getServer().getWorlds().get(0).getName();
+                    if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
+                        String fromWorld = fromLoc.getWorld().getName();
+                        if (!fromWorld.endsWith("_nether") && !fromWorld.endsWith("_the_end")) {
+                            World world = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_the_end");
+                            Location to = new Location(world,event.getFrom().getX(),event.getFrom().getY(),event.getFrom().getZ());
+                            event.setTo(to);
+                        }
+                    }
+                }
+            } else if (cause == TeleportCause.NETHER_PORTAL) {
+                String defaultWorld = getServer().getWorlds().get(0).getName();
+                Location fromLoc = event.getFrom();
+                if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
+                    Location toLoc = event.getTo();
+                    String fromWorld = fromLoc.getWorld().getName();
+                    if (!fromWorld.endsWith("_nether") && !fromWorld.endsWith("_the_end")) {
+                        World world = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_nether");
+                        Location to = new Location(world,event.getFrom().getX(),event.getFrom().getY(),event.getFrom().getZ());
+                        event.setTo(to);
+                    }
                 }
             }
         }
@@ -638,18 +661,18 @@ public class WhooshingWell extends JavaPlugin implements Listener {
             ConfigurationSection section = portalConfig.getConfigurationSection(configWorlds[x].toString());
             if (section != null) {
                 Object[] configKeys = section.getKeys(false).toArray();
-                if (getServer().getWorld(section.getName()) == null) {
-                    WorldCreator wc = makeWorld(section.getName(), null);
-                    getServer().createWorld(wc);
-                    return;
+                if (!section.getName().contains("_nether") && !section.getName().contains("_the_end")) {
+                    if (getServer().getWorld(section.getName()) == null) {
+                        WorldCreator wc = makeWorld(section.getName(), null);
+                        getServer().createWorld(wc);
+                    }
                 }
                 for (int i = 0; i < configKeys.length; i++) {
                     String key = configKeys[i].toString();
                     String destination = section.getString(key + ".destination");
                     if (getServer().getWorld(destination) == null) {
-                        WorldCreator wc = new WorldCreator(destination).seed(new Random().nextLong());
+                        WorldCreator wc = makeWorld(destination, null);
                         getServer().createWorld(wc);
-                        return;
                     }
                 }
             }
@@ -659,11 +682,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     private WorldCreator makeWorld(String worldName, CommandSender sender) {
         WorldCreator wc = new WorldCreator(worldName);
         wc.seed(new Random().nextLong());
-        if (sender != null) {
-            wc.generator(worldName, sender);
-        } else {
-            wc.generator(worldName);
-        }
+        wc.environment(World.Environment.NORMAL);
+        wc.generator(this.getName(), sender);
         return wc;
     }
     
