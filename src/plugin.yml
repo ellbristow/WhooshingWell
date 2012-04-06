@@ -1,6 +1,6 @@
 name: WhooshingWell
 main: me.ellbristow.WhooshingWell.WhooshingWell
-version: 0.0.4a
+version: 0.0.5a
 author: ellbristow
 dev-url: http://dev.bukkit.org/server-mods/whooshingwell
 softdepend: [My Worlds,Multiverse]

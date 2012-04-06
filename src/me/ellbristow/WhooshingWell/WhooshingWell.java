@@ -243,7 +243,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
             TeleportCause cause = event.getCause();
             if (cause.equals(TeleportCause.END_PORTAL)) {
                 Location fromLoc = event.getFrom();
-                if (isWW(fromLoc)) {
+                Location aboveFromLoc = event.getFrom().clone().add(0, 1, 0);
+                if (isWW(fromLoc) || isWW(aboveFromLoc)) {
                     event.setCancelled(true);
                     if (event.getPlayer().hasPermission("whooshingwell.use")) {
                         String destination = getDestination(fromLoc);
@@ -683,7 +684,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         WorldCreator wc = new WorldCreator(worldName);
         wc.seed(new Random().nextLong());
         wc.environment(World.Environment.NORMAL);
-        wc.generator(this.getName(), sender);
+        //wc.generator(this.getName(), sender);
         return wc;
     }
     
