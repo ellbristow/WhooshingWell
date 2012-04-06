@@ -243,11 +243,30 @@ public class WhooshingWell extends JavaPlugin implements Listener {
             TeleportCause cause = event.getCause();
             if (cause.equals(TeleportCause.END_PORTAL)) {
                 Location fromLoc = event.getFrom();
-                Location aboveFromLoc = event.getFrom().clone().add(0, 1, 0);
-                if (isWW(fromLoc) || isWW(aboveFromLoc)) {
+                Location footLoc = event.getPlayer().getLocation();
+                Location underFoot = footLoc.clone().subtract(0, 1, 0);
+                Location headLoc = event.getPlayer().getEyeLocation();
+                Location overHead = headLoc.clone().add(0, 1, 0);
+                if (isWW(fromLoc) || isWW(footLoc) || isWW(underFoot) || isWW(headLoc) || isWW(overHead)) {
                     event.setCancelled(true);
                     if (event.getPlayer().hasPermission("whooshingwell.use")) {
-                        String destination = getDestination(fromLoc);
+                        String destination = "";
+                        if (isWW(fromLoc)) {
+                            destination = getDestination(fromLoc);
+                            togglePortalFromJump(fromLoc);
+                        } else if (isWW(footLoc)) {
+                            destination = getDestination(footLoc);
+                            togglePortalFromJump(footLoc);
+                        } else if (isWW(underFoot)) {
+                            destination = getDestination(underFoot);
+                            togglePortalFromJump(underFoot);
+                        } else if (isWW(headLoc)) {
+                            destination = getDestination(headLoc);
+                            togglePortalFromJump(headLoc);
+                        } else if (isWW(overHead)) {
+                            destination = getDestination(overHead);
+                            togglePortalFromJump(overHead);
+                        }
                         if (getServer().getWorld(destination) != null) {
                             Location teleportDestination =  getServer().getWorld(destination).getSpawnLocation();
                             event.getPlayer().sendMessage(ChatColor.GOLD + "WHOOSH!");
@@ -256,7 +275,6 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                             event.getPlayer().sendMessage(ChatColor.RED + "Oh Dear! The other end of this portal no longer exists!");
                         }
                     }
-                    togglePortalFromJump(fromLoc);
                 } else {
                     String defaultWorld = getServer().getWorlds().get(0).getName();
                     if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
