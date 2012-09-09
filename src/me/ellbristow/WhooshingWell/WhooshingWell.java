@@ -22,14 +22,18 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WhooshingWell extends JavaPlugin implements Listener {
     
-    public static WhooshingWell plugin;
+    protected static WhooshingWell plugin;
+    protected FileConfiguration config;
     private FileConfiguration portalConfig = null;
     private File portalFile = null;
+    
+    protected boolean clearInv;
     
     @Override
     public void onDisable() {
@@ -37,6 +41,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     
     @Override
     public void onEnable () {
+        config = getConfig();
+        clearInv = config.getBoolean("requireEmptyInventory", false);
+        config.set("requireEmptyInventory", clearInv);
+        saveConfig();
         portalConfig = getPortals();
         forceWorldLoads();
         getServer().getPluginManager().registerEvents(this, this);
@@ -46,13 +54,19 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     public boolean onCommand (CommandSender sender, Command cmd, String commandLabel, String[] args) {
         if (commandLabel.equalsIgnoreCase("ww")) {
             if (args.length == 0) {
-                if (sender.hasPermission("whooshingwell.use")) {
-                    String version = getDescription().getVersion();
-                    sender.sendMessage(ChatColor.GOLD + "WhooshingWell v" + ChatColor.WHITE + version + ChatColor.GOLD + " by " + ChatColor.WHITE + "ellbristow");
+                if (!sender.hasPermission("whooshingwell.use")) {
+                    sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
                     return true;
                 }
+                String version = getDescription().getVersion();
+                sender.sendMessage(ChatColor.GOLD + "WhooshingWell v" + ChatColor.WHITE + version + ChatColor.GOLD + " by " + ChatColor.WHITE + "ellbristow");
+                return true;
             } else if (args.length == 1) {
-                if ("list".equals(args[0]) && sender.hasPermission("whooshingwell.world.list")) {
+                if ("list".equalsIgnoreCase(args[0])) {
+                    if (!sender.hasPermission("whooshingwell.world.list")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
                     Object[] worlds = getServer().getWorlds().toArray();
                     sender.sendMessage(ChatColor.GOLD + "World List");
                     sender.sendMessage(ChatColor.GOLD + "==========");
@@ -62,7 +76,11 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     }
                 }
             } else if (args.length == 2) {
-                if (args[0].equalsIgnoreCase("addworld") && sender.hasPermission("whooshingwell.world.create")) {
+                if (args[0].equalsIgnoreCase("addworld")) {
+                    if (!sender.hasPermission("whooshingwell.world.create")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
                     if (getServer().getWorld(args[1]) != null){
                         sender.sendMessage(ChatColor.RED + "A world called '" + ChatColor.WHITE + args[1] + ChatColor.RED + "' already exists!");
                         return true;
@@ -78,6 +96,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         return true;
                     }
                 } else if (args[0].equalsIgnoreCase("deleteworld") && sender.hasPermission("whooshingwell.world.delete")) {
+                    if (!sender.hasPermission("whooshingwell.world.delete")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
                     if (getServer().getWorld(args[1]) == null){
                         sender.sendMessage(ChatColor.RED + "There is no world called '" + ChatColor.WHITE + args[1] + ChatColor.RED + "'!");
                         return true;
@@ -100,7 +122,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 }
             }
         }
-        return false;
+        return true;
     }
     
     @EventHandler (priority = EventPriority.NORMAL)
@@ -268,6 +290,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                             togglePortalFromJump(overHead);
                         }
                         if (getServer().getWorld(destination) != null) {
+                            if (clearInv && !emptyInventory(event.getPlayer().getInventory())) {
+                                event.getPlayer().sendMessage(ChatColor.RED + "You must have an empty inventory to use a Whooshing Well!");
+                                return;
+                            }
                             Location teleportDestination =  getServer().getWorld(destination).getSpawnLocation();
                             event.getPlayer().sendMessage(ChatColor.GOLD + "WHOOSH!");
                             event.getPlayer().teleport(teleportDestination);
@@ -300,6 +326,19 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 }
             }
         }
+    }
+    
+    private boolean emptyInventory(Inventory inv) {
+        if (inv == null) {
+            return true;
+        }
+        ItemStack[] contents = inv.getContents();
+        for (ItemStack stack : contents) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isWW(Location loc) {
@@ -522,7 +561,15 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     }
     
     private boolean isStairs(Block block) {
-        if (block.getTypeId() == 53 || block.getTypeId() == 67 || block.getTypeId() == 108 || block.getTypeId() == 109 || block.getTypeId() == 114) {
+        if (       block.getTypeId() == 53
+                || block.getTypeId() == 67
+                || block.getTypeId() == 108
+                || block.getTypeId() == 109
+                || block.getTypeId() == 114
+                || block.getTypeId() == 128
+                || block.getTypeId() == 134
+                || block.getTypeId() == 135
+                || block.getTypeId() == 136) {
             return true;
         }
         return false;
