@@ -1,6 +1,6 @@
 name: WhooshingWell
 main: me.ellbristow.WhooshingWell.WhooshingWell
-version: 1.0.0
+version: 1.0.1
 author: ellbristow
 dev-url: http://dev.bukkit.org/server-mods/whooshingwell
 softdepend: [My Worlds,Multiverse]
@@ -15,7 +15,10 @@ permissions:
     description: all permissions
     children:
       whooshingwell.create: true
+      whooshingwell.destroy: true
       whooshingwell.use: true
+      whooshingwell.world.*: true
+      whooshingwell.toggle.*: true
   whooshingwell.create:
     description: Can create a Whooshing Well
   whooshingwell.destroy:
@@ -34,3 +37,12 @@ permissions:
     description: Can delete a world
   whooshingwell.world.list:
     description: Can see the world list
+  whooshingwell.toggle.*:
+    description: Can toggle all Whooshing well settings
+    children:
+      whooshingwell.toggle.emptyinv: true
+      whooshingwell.toggle.emptyarmor: true
+  whooshingwell.toggle.emptyinv:
+    description: Can toggle EmptyInv option
+  whooshingwell.toggle.emptyarmor:
+    description: Can toggle EmptyArmor option

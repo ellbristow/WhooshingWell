@@ -24,6 +24,7 @@ import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WhooshingWell extends JavaPlugin implements Listener {
@@ -34,6 +35,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     private File portalFile = null;
     
     protected boolean clearInv;
+    protected boolean clearArmor;
     
     @Override
     public void onDisable() {
@@ -44,6 +46,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         config = getConfig();
         clearInv = config.getBoolean("requireEmptyInventory", false);
         config.set("requireEmptyInventory", clearInv);
+        clearArmor = config.getBoolean("requireEmptyArmor", false);
+        config.set("requireEmptyArmor", clearArmor);
         saveConfig();
         portalConfig = getPortals();
         forceWorldLoads();
@@ -54,12 +58,11 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     public boolean onCommand (CommandSender sender, Command cmd, String commandLabel, String[] args) {
         if (commandLabel.equalsIgnoreCase("ww")) {
             if (args.length == 0) {
-                if (!sender.hasPermission("whooshingwell.use")) {
-                    sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
-                    return true;
-                }
                 String version = getDescription().getVersion();
                 sender.sendMessage(ChatColor.GOLD + "WhooshingWell v" + ChatColor.WHITE + version + ChatColor.GOLD + " by " + ChatColor.WHITE + "ellbristow");
+                sender.sendMessage(ChatColor.GOLD + "=============");
+                sender.sendMessage(ChatColor.GOLD + "Require Empty Inventory: " + ChatColor.WHITE + clearInv);
+                sender.sendMessage(ChatColor.GOLD + "Require No Armor: " + ChatColor.WHITE + clearArmor);
                 return true;
             } else if (args.length == 1) {
                 if ("list".equalsIgnoreCase(args[0])) {
@@ -73,6 +76,18 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     for (int i = 0; i < worlds.length; i++) {
                         World world = (World)worlds[i];
                         sender.sendMessage(ChatColor.GOLD + world.getName());
+                    }
+                } else if (args[0].equalsIgnoreCase("toggle")) {
+                    if (!sender.hasPermission("whooshingwell.toggle.emptyinv") && !sender.hasPermission("whooshingwell.toggle.emptyinv")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    sender.sendMessage(ChatColor.RED + "You must specify a setting to toggle!");
+                    if (sender.hasPermission("whooshingwell.toggle.emptyinv")) {
+                        sender.sendMessage(ChatColor.GRAY + "EmptyInv: Players cannot carry inventory through portals");
+                    }
+                    if (sender.hasPermission("whooshingwell.toggle.emptyarmor")) {
+                        sender.sendMessage(ChatColor.GRAY + "EmptyArmor: Players cannot wear armor through portals");
                     }
                 }
             } else if (args.length == 2) {
@@ -119,6 +134,37 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         portalConfig.set(args[1], null);
                         return true;
                     }
+                } else if (args[0].equalsIgnoreCase("toggle")) {
+                    if (args[1].equalsIgnoreCase("EmptyInv")) {
+                        if (!sender.hasPermission("whooshingwell.toggle.emptyinv")) {
+                            sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
+                            return true;
+                        }
+                        if (clearInv) {
+                            clearInv = false;
+                            sender.sendMessage(ChatColor.GOLD + "Players no longer need to empty their inventory to use Whooshing Wells!");
+                        } else {
+                            clearInv = true;
+                            sender.sendMessage(ChatColor.GOLD + "Players must now empty their inventory to use Whooshing Wells!");
+                        }
+                        config.set("requireEmptyInventory", clearInv);
+                        saveConfig();
+                    } else if (args[1].equalsIgnoreCase("EmptyArmor")) {
+                        if (!sender.hasPermission("whooshingwell.toggle.emptyinv")) {
+                            sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
+                            return true;
+                        }
+                        if (clearArmor) {
+                            clearArmor = false;
+                            sender.sendMessage(ChatColor.GOLD + "Players no longer need to remove their armor to use Whooshing Wells!");
+                        } else {
+                            clearArmor = true;
+                            sender.sendMessage(ChatColor.GOLD + "Players must now remove their armor to use Whooshing Wells!");
+                        }
+                        config.set("requireEmptyArmor", clearArmor);
+                        saveConfig();
+                    }
+                    return true;
                 }
             }
         }
@@ -294,6 +340,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                                 event.getPlayer().sendMessage(ChatColor.RED + "You must have an empty inventory to use a Whooshing Well!");
                                 return;
                             }
+                            if (clearArmor && !emptyArmor(event.getPlayer().getInventory())) {
+                                event.getPlayer().sendMessage(ChatColor.RED + "You must not be wearing armor to use a Whooshing Well!");
+                                return;
+                            }
                             Location teleportDestination =  getServer().getWorld(destination).getSpawnLocation();
                             event.getPlayer().sendMessage(ChatColor.GOLD + "WHOOSH!");
                             event.getPlayer().teleport(teleportDestination);
@@ -326,6 +376,20 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 }
             }
         }
+    }
+    
+    private boolean emptyArmor(PlayerInventory inv) {
+        if (inv == null) {
+            return true;
+        }
+        ItemStack helmet = inv.getHelmet();
+        ItemStack chest = inv.getChestplate();
+        ItemStack legs = inv.getLeggings();
+        ItemStack boots = inv.getBoots();
+        if (helmet != null || chest != null || legs != null || boots != null) {
+            return false;
+        }
+        return true;
     }
     
     private boolean emptyInventory(Inventory inv) {
