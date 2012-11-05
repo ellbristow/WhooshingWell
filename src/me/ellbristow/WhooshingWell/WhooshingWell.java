@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.logging.Level;
 import org.bukkit.*;
+import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
@@ -36,6 +37,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     
     protected boolean clearInv;
     protected boolean clearArmor;
+    protected boolean allowNether;
+    protected boolean allowEnd;
     
     @Override
     public void onDisable() {
@@ -48,6 +51,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         config.set("requireEmptyInventory", clearInv);
         clearArmor = config.getBoolean("requireEmptyArmor", false);
         config.set("requireEmptyArmor", clearArmor);
+        allowNether = config.getBoolean("allowNetherWells", true);
+        config.set("allowNetherWells", allowNether);
+        allowEnd = config.getBoolean("allowEndWells", true);
+        config.set("allowEndWells", allowEnd);
         saveConfig();
         portalConfig = getPortals();
         forceWorldLoads();
@@ -61,8 +68,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 String version = getDescription().getVersion();
                 sender.sendMessage(ChatColor.GOLD + "WhooshingWell v" + ChatColor.WHITE + version + ChatColor.GOLD + " by " + ChatColor.WHITE + "ellbristow");
                 sender.sendMessage(ChatColor.GOLD + "=============");
-                sender.sendMessage(ChatColor.GOLD + "Require Empty Inventory: " + ChatColor.WHITE + clearInv);
-                sender.sendMessage(ChatColor.GOLD + "Require No Armor: " + ChatColor.WHITE + clearArmor);
+                sender.sendMessage(ChatColor.GOLD + "Require Empty Inventory : " + ChatColor.WHITE + clearInv);
+                sender.sendMessage(ChatColor.GOLD + "Require No Armor          : " + ChatColor.WHITE + clearArmor);
+                sender.sendMessage(ChatColor.GOLD + "Allow Nether Wells          : " + ChatColor.WHITE + allowNether);
+                sender.sendMessage(ChatColor.GOLD + "Allow End Wells              : " + ChatColor.WHITE + allowEnd);
                 return true;
             } else if (args.length == 1) {
                 if ("list".equalsIgnoreCase(args[0])) {
@@ -75,7 +84,9 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     sender.sendMessage(ChatColor.GOLD + "==========");
                     for (int i = 0; i < worlds.length; i++) {
                         World world = (World)worlds[i];
-                        sender.sendMessage(ChatColor.GOLD + world.getName());
+                        if (!(world.getEnvironment().equals(Environment.NETHER) && !allowNether) && !(world.getEnvironment().equals(Environment.THE_END) && !allowEnd)) {
+                            sender.sendMessage(ChatColor.GOLD + world.getName() + ChatColor.GRAY + "("+i+")");
+                        }
                     }
                 } else if (args[0].equalsIgnoreCase("toggle")) {
                     if (!sender.hasPermission("whooshingwell.toggle.emptyinv") && !sender.hasPermission("whooshingwell.toggle.emptyinv")) {
@@ -88,6 +99,12 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     }
                     if (sender.hasPermission("whooshingwell.toggle.emptyarmor")) {
                         sender.sendMessage(ChatColor.GRAY + "EmptyArmor: Players cannot wear armor through portals");
+                    }
+                    if (sender.hasPermission("whooshingwell.toggle.allownether")) {
+                        sender.sendMessage(ChatColor.GRAY + "AllowNether: New wells can lead to Nether worlds");
+                    }
+                    if (sender.hasPermission("whooshingwell.toggle.allowend")) {
+                        sender.sendMessage(ChatColor.GRAY + "AllowEnd: New wells can lean to End worlds");
                     }
                 }
             } else if (args.length == 2) {
@@ -163,6 +180,34 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                         config.set("requireEmptyArmor", clearArmor);
                         saveConfig();
+                    } else if (args[1].equalsIgnoreCase("AllowNether")) {
+                        if (!sender.hasPermission("whooshingwell.toggle.allownether")) {
+                            sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
+                            return true;
+                        }
+                        if (allowNether) {
+                            allowNether = false;
+                            sender.sendMessage(ChatColor.GOLD + "New wells now CANNOT lead to Nether worlds!");
+                        } else {
+                            allowNether = true;
+                            sender.sendMessage(ChatColor.GOLD + "New wells now CAN lead to Nether worlds!");
+                        }
+                        config.set("allowNetherWells", allowNether);
+                        saveConfig();
+                    } else if (args[1].equalsIgnoreCase("AllowEnd")) {
+                        if (!sender.hasPermission("whooshingwell.toggle.allowend")) {
+                            sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
+                            return true;
+                        }
+                        if (allowEnd) {
+                            allowEnd = false;
+                            sender.sendMessage(ChatColor.GOLD + "New wells now CANNOT lead to End worlds!");
+                        } else {
+                            allowEnd = true;
+                            sender.sendMessage(ChatColor.GOLD + "New wells now CAN lead to End worlds!");
+                        }
+                        config.set("allowEndWells", allowEnd);
+                        saveConfig();
                     }
                     return true;
                 }
@@ -212,15 +257,56 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                     }
                 }
-                // Well OK, Check World Name
+                // Well OK, Check World Name/ID
                 String line1 = event.getLine(1);
-                if (getServer().getWorld(line1) == null) {
+                String worldName;
+                if (line1.toLowerCase().startsWith("world:")) {
+                    String idString = line1.split(":")[1];
+                    try {
+                        int worldId = Integer.parseInt(idString);
+                        World world = getServer().getWorlds().get(worldId);
+                        if (world == null) {
+                            player.sendMessage(ChatColor.RED + "Could not find World Id " + ChatColor.WHITE + idString + ChatColor.RED + "!");
+                            player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
+                            player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
+                            event.setCancelled(true);
+                            dropSign(signBlock);
+                            return;
+                        } else {
+                            worldName = world.getName();
+                        }
+                    } catch (NumberFormatException e) {
+                        player.sendMessage(ChatColor.WHITE + idString + ChatColor.RED + " is not a valid world ID!");
+                        player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
+                        player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
+                        event.setCancelled(true);
+                        dropSign(signBlock);
+                        return;
+                    }
+                } else if (getServer().getWorld(line1) == null) {
                     player.sendMessage(ChatColor.RED + "Could not find a world called '" + ChatColor.WHITE + line1 + ChatColor.RED + "'!");
-                    player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name!");
+                    player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
+                    player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
                     event.setCancelled(true);
                     dropSign(signBlock);
                     return;
+                } else {
+                    worldName = line1;
                 }
+                
+                // World Name/ID OK, check Nether/End restrictions
+                World world = getServer().getWorld(worldName);
+                
+                if (world.getEnvironment().equals(Environment.NETHER) && !allowNether) {
+                    player.sendMessage(ChatColor.RED + "Whooshing Wells cannot lead to Nether worlds!");
+                    dropSign(signBlock);
+                    return;
+                } else if (world.getEnvironment().equals(Environment.THE_END) && !allowEnd) {
+                    player.sendMessage(ChatColor.RED + "Whooshing Wells cannot lead to End worlds!");
+                    dropSign(signBlock);
+                    return;
+                }
+                
                 // GOOD TO GO!
                 String thisPortal = signBlock.getWorld().getName() + "." + signBlock.getX() + "_" + signBlock.getY() + "_" + signBlock.getZ();
                 Block[] airBlocks = getAir(signBlock, getButtonDirection(signBlock), false);
@@ -235,9 +321,9 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     location += block.getWorld().getName() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
                 }
                 portalConfig.set(thisPortal + ".location",location);
-                portalConfig.set(thisPortal + ".destination", line1);
+                portalConfig.set(thisPortal + ".destination", worldName);
                 savePortals();
-                player.sendMessage(ChatColor.GOLD + "A new Whooshing Well to '" + ChatColor.WHITE + line1 + ChatColor.GOLD + "' has been created!");
+                player.sendMessage(ChatColor.GOLD + "A new Whooshing Well to '" + ChatColor.WHITE + worldName + ChatColor.GOLD + "' has been created!");
             }
         }
     }
@@ -449,7 +535,13 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 String locations = section.getString(key + ".location");
                 for (String location : locations.split(";")) {
                     if (location.equals(loc.getWorld().getName() + ":" + (int)Math.floor(loc.getX()) + ":" + (int)Math.floor(loc.getY()) + ":" + (int)Math.floor(loc.getZ()))) {
-                        return section.getString(key + ".destination");
+                        String dest = section.getString(key + ".destination");
+                        try {
+                            int worldId = Integer.parseInt(dest);
+                            return getServer().getWorlds().get(worldId).getName();
+                        } catch (NumberFormatException e) {
+                            return section.getString(key + ".destination");
+                        }
                     }
                 }
             }

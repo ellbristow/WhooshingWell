@@ -1,6 +1,6 @@
 name: WhooshingWell
 main: me.ellbristow.WhooshingWell.WhooshingWell
-version: 1.0.1
+version: 1.1.0
 author: ellbristow
 dev-url: http://dev.bukkit.org/server-mods/whooshingwell
 softdepend: [My Worlds,Multiverse]
@@ -46,3 +46,7 @@ permissions:
     description: Can toggle EmptyInv option
   whooshingwell.toggle.emptyarmor:
     description: Can toggle EmptyArmor option
+  whooshingwell.toggle.allowNether:
+    description: Can toggle AllowNether option
+  whooshingwell.toggle.allowend:
+    description: Can toggle AllowEnd option
