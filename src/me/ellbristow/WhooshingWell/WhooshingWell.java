@@ -333,7 +333,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         if (!event.isCancelled()) {
             Block block = event.getClickedBlock();
-            if (block != null && block.getType() == Material.STONE_BUTTON) {
+            if (block != null && (block.getType() == Material.STONE_BUTTON || block.getType() == Material.WOOD_BUTTON)) {
                 if (isWWButton(block, true) || isWWButton(block, false) && player.hasPermission("whooshingwell.use")) {
                     String location = getWWFromButton(block);
                     if (location != null) {
@@ -569,22 +569,22 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     private BlockFace getButtonDirection(Block signBlock) {
         // Try NORTH
         Block attempt = signBlock.getRelative(BlockFace.NORTH, 3);
-        if (attempt.getType() == Material.STONE_BUTTON) {
+        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
             return BlockFace.NORTH;
         }
         // Try SOUTH
         attempt = signBlock.getRelative(BlockFace.SOUTH, 3);
-        if (attempt.getType() == Material.STONE_BUTTON) {
+        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
             return BlockFace.SOUTH;
         }
         // Try EAST
         attempt = signBlock.getRelative(BlockFace.EAST, 3);
-        if (attempt.getType() == Material.STONE_BUTTON) {
+        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
             return BlockFace.EAST;
         }
         // Try WEST
         attempt = signBlock.getRelative(BlockFace.WEST, 3);
-        if (attempt.getType() == Material.STONE_BUTTON) {
+        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
             return BlockFace.WEST;
         }
         return null;
