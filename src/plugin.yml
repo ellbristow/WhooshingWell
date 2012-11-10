@@ -1,6 +1,6 @@
 name: WhooshingWell
 main: me.ellbristow.WhooshingWell.WhooshingWell
-version: 1.1.1
+version: 1.2.0
 author: ellbristow
 dev-url: http://dev.bukkit.org/server-mods/whooshingwell
 softdepend: [My Worlds,Multiverse]
@@ -17,6 +17,8 @@ permissions:
       whooshingwell.create: true
       whooshingwell.destroy: true
       whooshingwell.use: true
+      whooshingwell.setdest: true
+      whooshingwell.deldest: true
       whooshingwell.world.*: true
       whooshingwell.toggle.*: true
   whooshingwell.create:
@@ -25,6 +27,10 @@ permissions:
     description: Can destroy a Whooshing Well
   whooshingwell.use:
     description: Can use a Whooshing Well
+  whooshingwell.setdest:
+    description: Can set new Whooshing Well destinations
+  whooshingwell.deldest:
+    description: Can set new Whooshing Well destinations
   whooshingwell.world.*:
     description: Can create and delete worlds
     children:

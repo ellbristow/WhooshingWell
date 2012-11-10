@@ -2,10 +2,13 @@ package me.ellbristow.WhooshingWell;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
-import org.bukkit.*;
 import org.bukkit.World.Environment;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
@@ -40,6 +43,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     protected boolean allowNether;
     protected boolean allowEnd;
     
+    protected HashMap<String, Location> destinations = new HashMap<String, Location>();
+    
     @Override
     public void onDisable() {
     }
@@ -56,6 +61,22 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         allowEnd = config.getBoolean("allowEndWells", true);
         config.set("allowEndWells", allowEnd);
         saveConfig();
+        ConfigurationSection dests = config.getConfigurationSection("destinations");
+        if (dests != null) {
+            for (String key : dests.getKeys(false)) {
+                String world = dests.getString(key+".world");
+                if (getServer().getWorld(world) != null) {
+                    double x = dests.getDouble(key+".x");
+                    double y = dests.getDouble(key+".y");
+                    double z = dests.getDouble(key+".z");
+                    List<Float> floats = dests.getFloatList(key+".yawpitch");
+                    float yaw = floats.get(0);
+                    float pitch = floats.get(1);
+                    Location loc = new Location(getServer().getWorld(world), x, y, z, yaw, pitch);
+                    destinations.put(key, loc);
+                }
+            }
+        }
         portalConfig = getPortals();
         forceWorldLoads();
         getServer().getPluginManager().registerEvents(this, this);
@@ -85,11 +106,19 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     for (int i = 0; i < worlds.length; i++) {
                         World world = (World)worlds[i];
                         if (!(world.getEnvironment().equals(Environment.NETHER) && !allowNether) && !(world.getEnvironment().equals(Environment.THE_END) && !allowEnd)) {
-                            sender.sendMessage(ChatColor.GOLD + world.getName() + ChatColor.GRAY + "("+i+")");
+                            sender.sendMessage(ChatColor.GOLD + world.getName() + ChatColor.GRAY + " ("+i+")");
                         }
                     }
+                    for (String key : destinations.keySet()) {
+                        Location loc = destinations.get(key);
+                        World world = loc.getWorld();
+                        if (!(world.getEnvironment().equals(Environment.NETHER) && !allowNether) && !(world.getEnvironment().equals(Environment.THE_END) && !allowEnd)) {
+                            sender.sendMessage(ChatColor.YELLOW + key);
+                        }
+                    }
+                    return true;
                 } else if (args[0].equalsIgnoreCase("toggle")) {
-                    if (!sender.hasPermission("whooshingwell.toggle.emptyinv") && !sender.hasPermission("whooshingwell.toggle.emptyinv")) {
+                    if (!sender.hasPermission("whooshingwell.toggle.emptyinv") && !sender.hasPermission("whooshingwell.toggle.emptyarmor")  && !sender.hasPermission("whooshingwell.toggle.allownether") && !sender.hasPermission("whooshingwell.toggle.allowend")) {
                         sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
                         return true;
                     }
@@ -106,6 +135,43 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     if (sender.hasPermission("whooshingwell.toggle.allowend")) {
                         sender.sendMessage(ChatColor.GRAY + "AllowEnd: New wells can lean to End worlds");
                     }
+                    return true;
+                } else if (args[0].equalsIgnoreCase("addworld")) {
+                    if (!sender.hasPermission("whooshingwell.world.create")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    sender.sendMessage(ChatColor.RED + "You must specify a world name!");
+                    sender.sendMessage(ChatColor.RED + "/ww addworld [World Name]");
+                    return true;
+                } else if (args[0].equalsIgnoreCase("deleteworld") || args[0].equalsIgnoreCase("delworld")) {
+                    if (!sender.hasPermission("whooshingwell.world.delete")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    sender.sendMessage(ChatColor.RED + "You must specify a world name!");
+                    sender.sendMessage(ChatColor.RED + "/ww addworld [World Name]");
+                    return true;
+                } else if (args[0].equalsIgnoreCase("setdest")) {
+                    if (!(sender instanceof Player)) {
+                        sender.sendMessage(ChatColor.RED + "This command cannot be run from the console!");
+                        return true;
+                    }
+                    if (!sender.hasPermission("whooshingwell.setdest")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    sender.sendMessage(ChatColor.RED + "You must specify a destination name!");
+                    sender.sendMessage(ChatColor.RED + "/ww setdest [Destination Name]");
+                    return true;
+                } else if (args[0].equalsIgnoreCase("deldest")) {
+                    if (!sender.hasPermission("whooshingwell.deldest")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    sender.sendMessage(ChatColor.RED + "You must specify a destination name!");
+                    sender.sendMessage(ChatColor.RED + "/ww deldest [Destination Name]");
+                    return true;
                 }
             } else if (args.length == 2) {
                 if (args[0].equalsIgnoreCase("addworld")) {
@@ -127,7 +193,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         getServer().createWorld(wc);
                         return true;
                     }
-                } else if (args[0].equalsIgnoreCase("deleteworld") && sender.hasPermission("whooshingwell.world.delete")) {
+                } else if ((args[0].equalsIgnoreCase("deleteworld") || args[0].equalsIgnoreCase("delworld"))) {
                     if (!sender.hasPermission("whooshingwell.world.delete")) {
                         sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
                         return true;
@@ -151,6 +217,55 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         portalConfig.set(args[1], null);
                         return true;
                     }
+                } else if (args[0].equalsIgnoreCase("setdest")) {
+                    if (!(sender instanceof Player)) {
+                        sender.sendMessage(ChatColor.RED + "This command cannot be run from the console!");
+                        return true;
+                    }
+                    if (!sender.hasPermission("whooshingwell.setdest")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    if (getServer().getWorld(args[1]) != null) {
+                        sender.sendMessage(ChatColor.RED + "You cannot set a destination with the same name as a world!");
+                        sender.sendMessage(ChatColor.RED + "/ww setdest [Destination Name]");
+                        return true;
+                    }
+                    Player player = (Player)sender;
+                    World world = player.getWorld();
+                    if (world.getEnvironment().equals(Environment.NETHER) && !allowNether) {
+                        player.sendMessage(ChatColor.RED + "Whooshing wells cannot lead to Nether worlds");
+                        return true;
+                    } else if (world.getEnvironment().equals(Environment.THE_END) && !allowEnd) {
+                        player.sendMessage(ChatColor.RED + "Whooshing wells cannot lead to End worlds");
+                        return true;
+                    }
+                    Location loc = player.getLocation();
+                    destinations.put(args[1].toLowerCase(), loc);
+                    config.set("destinations."+args[1]+".world", loc.getWorld().getName());
+                    config.set("destinations."+args[1]+".x", loc.getX());
+                    config.set("destinations."+args[1]+".y", loc.getY());
+                    config.set("destinations."+args[1]+".z", loc.getZ());
+                    List<Float> yawpitch = new ArrayList<Float>();
+                    yawpitch.add(loc.getYaw());
+                    yawpitch.add(loc.getPitch());
+                    config.set("destinations."+args[1].toLowerCase()+".yawpitch", yawpitch);
+                    saveConfig();
+                    player.sendMessage(ChatColor.GOLD + "New destination " + ChatColor.WHITE + args[1] + ChatColor.GOLD + " set!");
+                    return true;
+                } else if (args[0].equalsIgnoreCase("deldest")) {
+                    if (!sender.hasPermission("whooshingwell.deldest")) {
+                        sender.sendMessage(ChatColor.RED + "You do not have permission to use this command!");
+                        return true;
+                    }
+                    if (destinations.get(args[1].toLowerCase()) == null) {
+                        sender.sendMessage(ChatColor.RED + "Destination "+ChatColor.WHITE +args[1]+ ChatColor.RED+" not found!");
+                        return true;
+                    }
+                    destinations.remove(args[1].toLowerCase());
+                    config.set("destinations."+args[1].toLowerCase(), null);
+                    sender.sendMessage(ChatColor.GOLD + "Destination " + ChatColor.WHITE + args[1] + ChatColor.GOLD + " deleted!");
+                    return true;
                 } else if (args[0].equalsIgnoreCase("toggle")) {
                     if (args[1].equalsIgnoreCase("EmptyInv")) {
                         if (!sender.hasPermission("whooshingwell.toggle.emptyinv")) {
@@ -166,6 +281,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                         config.set("requireEmptyInventory", clearInv);
                         saveConfig();
+                        return true;
                     } else if (args[1].equalsIgnoreCase("EmptyArmor")) {
                         if (!sender.hasPermission("whooshingwell.toggle.emptyinv")) {
                             sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
@@ -180,6 +296,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                         config.set("requireEmptyArmor", clearArmor);
                         saveConfig();
+                        return true;
                     } else if (args[1].equalsIgnoreCase("AllowNether")) {
                         if (!sender.hasPermission("whooshingwell.toggle.allownether")) {
                             sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
@@ -194,6 +311,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                         config.set("allowNetherWells", allowNether);
                         saveConfig();
+                        return true;
                     } else if (args[1].equalsIgnoreCase("AllowEnd")) {
                         if (!sender.hasPermission("whooshingwell.toggle.allowend")) {
                             sender.sendMessage(ChatColor.RED + "You do not have permission to toggle this setting!");
@@ -208,11 +326,14 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                         config.set("allowEndWells", allowEnd);
                         saveConfig();
+                        return true;
                     }
+                    sender.sendMessage(ChatColor.RED + "Sorry! I dont' recognise that toggle option!");
                     return true;
                 }
             }
         }
+        sender.sendMessage(ChatColor.RED + "Sorry! That command was not recognised!");
         return true;
     }
     
@@ -260,6 +381,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 // Well OK, Check World Name/ID
                 String line1 = event.getLine(1);
                 String worldName;
+                boolean isDest = false;
                 if (line1.toLowerCase().startsWith("world:")) {
                     String idString = line1.split(":")[1];
                     try {
@@ -267,7 +389,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         World world = getServer().getWorlds().get(worldId);
                         if (world == null) {
                             player.sendMessage(ChatColor.RED + "Could not find World Id " + ChatColor.WHITE + idString + ChatColor.RED + "!");
-                            player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
+                            player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world or destination name");
                             player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
                             event.setCancelled(true);
                             dropSign(signBlock);
@@ -277,25 +399,36 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                     } catch (NumberFormatException e) {
                         player.sendMessage(ChatColor.WHITE + idString + ChatColor.RED + " is not a valid world ID!");
-                        player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
+                        player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world or destination name");
                         player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
                         event.setCancelled(true);
                         dropSign(signBlock);
                         return;
                     }
                 } else if (getServer().getWorld(line1) == null) {
-                    player.sendMessage(ChatColor.RED + "Could not find a world called '" + ChatColor.WHITE + line1 + ChatColor.RED + "'!");
-                    player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world name");
-                    player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
-                    event.setCancelled(true);
-                    dropSign(signBlock);
-                    return;
+                    if (destinations.get(line1.toLowerCase()) != null) {
+                        isDest = true;
+                        worldName = line1;
+                    } else {
+                        player.sendMessage(ChatColor.RED + "Could not find a world or destination called '" + ChatColor.WHITE + line1 + ChatColor.RED + "'!");
+                        player.sendMessage(ChatColor.RED + "Please make sure line 2 of your sign is a valid world or destination name");
+                        player.sendMessage(ChatColor.RED + "or is in the format \"world:[world id]\"!");
+                        event.setCancelled(true);
+                        dropSign(signBlock);
+                        return;
+                    }
                 } else {
                     worldName = line1;
                 }
                 
-                // World Name/ID OK, check Nether/End restrictions
-                World world = getServer().getWorld(worldName);
+                World world;
+                if (!isDest) {
+                    // World Name/ID OK, check Nether/End restrictions
+                    world = getServer().getWorld(worldName);
+                } else {
+                    Location dest = destinations.get(line1.toLowerCase());
+                    world = dest.getWorld();
+                }
                 
                 if (world.getEnvironment().equals(Environment.NETHER) && !allowNether) {
                     player.sendMessage(ChatColor.RED + "Whooshing Wells cannot lead to Nether worlds!");
@@ -433,6 +566,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                             Location teleportDestination =  getServer().getWorld(destination).getSpawnLocation();
                             event.getPlayer().sendMessage(ChatColor.GOLD + "WHOOSH!");
                             event.getPlayer().teleport(teleportDestination);
+                        } else if (destinations.get(destination.toLowerCase()) != null) {
+                            Location dest = destinations.get(destination.toLowerCase());
+                            event.getPlayer().sendMessage(ChatColor.GOLD + "WHOOSH!");
+                            event.getPlayer().teleport(dest);
                         } else {
                             event.getPlayer().sendMessage(ChatColor.RED + "Oh Dear! The other end of this portal no longer exists!");
                         }
@@ -452,7 +589,6 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 String defaultWorld = getServer().getWorlds().get(0).getName();
                 Location fromLoc = event.getFrom();
                 if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
-                    Location toLoc = event.getTo();
                     String fromWorld = fromLoc.getWorld().getName();
                     if (!fromWorld.endsWith("_nether") && !fromWorld.endsWith("_the_end")) {
                         World world = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_nether");
@@ -892,7 +1028,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 for (int i = 0; i < configKeys.length; i++) {
                     String key = configKeys[i].toString();
                     String destination = section.getString(key + ".destination");
-                    if (getServer().getWorld(destination) == null) {
+                    if (getServer().getWorld(destination) == null && destinations.get(destination) == null) {
                         WorldCreator wc = makeWorld(destination, null);
                         getServer().createWorld(wc);
                     }
