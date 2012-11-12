@@ -242,10 +242,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     }
                     Location loc = player.getLocation();
                     destinations.put(args[1].toLowerCase(), loc);
-                    config.set("destinations."+args[1]+".world", loc.getWorld().getName());
-                    config.set("destinations."+args[1]+".x", loc.getX());
-                    config.set("destinations."+args[1]+".y", loc.getY());
-                    config.set("destinations."+args[1]+".z", loc.getZ());
+                    config.set("destinations."+args[1].toLowerCase()+".world", loc.getWorld().getName());
+                    config.set("destinations."+args[1].toLowerCase()+".x", loc.getX());
+                    config.set("destinations."+args[1].toLowerCase()+".y", loc.getY());
+                    config.set("destinations."+args[1].toLowerCase()+".z", loc.getZ());
                     List<Float> yawpitch = new ArrayList<Float>();
                     yawpitch.add(loc.getYaw());
                     yawpitch.add(loc.getPitch());
