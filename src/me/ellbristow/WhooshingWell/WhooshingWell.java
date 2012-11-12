@@ -1028,7 +1028,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 for (int i = 0; i < configKeys.length; i++) {
                     String key = configKeys[i].toString();
                     String destination = section.getString(key + ".destination");
-                    if (getServer().getWorld(destination) == null && destinations.get(destination) == null) {
+                    if (getServer().getWorld(destination) == null && destinations.get(destination.toLowerCase()) == null) {
                         WorldCreator wc = makeWorld(destination, null);
                         getServer().createWorld(wc);
                     }
