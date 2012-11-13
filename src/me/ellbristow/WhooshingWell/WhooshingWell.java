@@ -29,6 +29,7 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.material.Button;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WhooshingWell extends JavaPlugin implements Listener {
@@ -882,34 +883,21 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     }
     
     private boolean isWWButton(Block block, boolean active) {
-        // Try NORTH
-        Player player = getServer().getPlayer("ellbristow");
-        Block attempt = block.getRelative(BlockFace.NORTH, 3);
-        if (isWW(attempt.getLocation())) {
-            if (hasWellLayout(attempt, active)) {
-                return true;
-            }
-        }
-        //Try SOUTH
-        attempt = block.getRelative(BlockFace.SOUTH, 3);
-        if (isWW(attempt.getLocation())) {
-            if (hasWellLayout(attempt, active)) {
-                return true;
-            }
-        }
-        //Try EAST
-        attempt = block.getRelative(BlockFace.EAST, 3);
-        if (isWW(attempt.getLocation())) {
-            if (hasWellLayout(attempt, active)) {
-                return true;
-            }
-        }
-        //Try WEST
-        attempt = block.getRelative(BlockFace.WEST, 3);
-        if (isWW(attempt.getLocation())) {
-            if (hasWellLayout(attempt, active)) {
-                return true;
-            }
+        BlockFace direction = ((Button)block.getState().getData()).getAttachedFace();
+        Block signLoc;
+        switch (direction) {
+            case NORTH:
+                signLoc = block.getRelative(BlockFace.EAST, 3);
+                if (isWW(signLoc.getLocation()) && hasWellLayout(signLoc, active)) return true;
+            case EAST:
+                signLoc = block.getRelative(BlockFace.SOUTH, 3);
+                if (isWW(signLoc.getLocation()) && hasWellLayout(signLoc, active)) return true;
+            case SOUTH:
+                signLoc = block.getRelative(BlockFace.WEST, 3);
+                if (isWW(signLoc.getLocation()) && hasWellLayout(signLoc, active)) return true;
+            case WEST:
+                signLoc = block.getRelative(BlockFace.NORTH, 3);
+                if (isWW(signLoc.getLocation()) && hasWellLayout(signLoc, active)) return true;
         }
         return false;
     }
@@ -978,24 +966,21 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     }
     
     private String getWWFromButton(Block block) {
-        Block attempt = block.getRelative(BlockFace.NORTH, 3);
-        if (isWW(attempt.getLocation())) {
-            return portalConfig.getString(attempt.getWorld().getName() + "." + attempt.getX() + "_" + attempt.getY() + "_" + attempt.getZ() + ".location");
-        }
-        //Try SOUTH
-        attempt = block.getRelative(BlockFace.SOUTH, 3);
-        if (isWW(attempt.getLocation())) {
-            return portalConfig.getString(attempt.getWorld().getName() + "." + attempt.getX() + "_" + attempt.getY() + "_" + attempt.getZ() + ".location");
-        }
-        //Try EAST
-        attempt = block.getRelative(BlockFace.EAST, 3);
-        if (isWW(attempt.getLocation())) {
-            return portalConfig.getString(attempt.getWorld().getName() + "." + attempt.getX() + "_" + attempt.getY() + "_" + attempt.getZ() + ".location");
-        }
-        //Try WEST
-        attempt = block.getRelative(BlockFace.WEST, 3);
-        if (isWW(attempt.getLocation())) {
-            return portalConfig.getString(attempt.getWorld().getName() + "." + attempt.getX() + "_" + attempt.getY() + "_" + attempt.getZ() + ".location");
+        BlockFace direction = ((Button)block.getState().getData()).getAttachedFace();
+        Block signLoc;
+        switch (direction) {
+            case NORTH:
+                signLoc = block.getRelative(BlockFace.EAST, 3);
+                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
+            case EAST:
+                signLoc = block.getRelative(BlockFace.SOUTH, 3);
+                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
+            case SOUTH:
+                signLoc = block.getRelative(BlockFace.WEST, 3);
+                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
+            case WEST:
+                signLoc = block.getRelative(BlockFace.NORTH, 3);
+                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
         }
         return "";
     }
