@@ -11,6 +11,7 @@ import org.bukkit.World.Environment;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Sign;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -66,16 +67,19 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         if (dests != null) {
             for (String key : dests.getKeys(false)) {
                 String world = dests.getString(key+".world");
-                if (getServer().getWorld(world) != null) {
-                    double x = dests.getDouble(key+".x");
-                    double y = dests.getDouble(key+".y");
-                    double z = dests.getDouble(key+".z");
-                    List<Float> floats = dests.getFloatList(key+".yawpitch");
-                    float yaw = floats.get(0);
-                    float pitch = floats.get(1);
-                    Location loc = new Location(getServer().getWorld(world), x, y, z, yaw, pitch);
-                    destinations.put(key, loc);
+                if (getServer().getWorld(world) == null) {
+                    WorldCreator wc = makeWorld(world, null);
+                    Bukkit.createWorld(wc);
                 }
+                key = key.toLowerCase();
+                double x = dests.getDouble(key+".x");
+                double y = dests.getDouble(key+".y");
+                double z = dests.getDouble(key+".z");
+                List<Float> floats = dests.getFloatList(key+".yawpitch");
+                float yaw = floats.get(0);
+                float pitch = floats.get(1);
+                Location loc = new Location(getServer().getWorld(world), x, y, z, yaw, pitch);
+                destinations.put(key, loc);
             }
         }
         portalConfig = getPortals();
@@ -151,7 +155,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         return true;
                     }
                     sender.sendMessage(ChatColor.RED + "You must specify a world name!");
-                    sender.sendMessage(ChatColor.RED + "/ww addworld [World Name]");
+                    sender.sendMessage(ChatColor.RED + "/ww delworld [World Name]");
                     return true;
                 } else if (args[0].equalsIgnoreCase("setdest")) {
                     if (!(sender instanceof Player)) {
@@ -191,7 +195,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         getServer().broadcastMessage(ChatColor.LIGHT_PURPLE + "A new world has been found!");
                         getServer().broadcastMessage(ChatColor.LIGHT_PURPLE + "You may experience some lag while we map it!");
                         WorldCreator wc = makeWorld(args[1], sender);
-                        getServer().createWorld(wc);
+                        Bukkit.createWorld(wc);
                         return true;
                     }
                 } else if ((args[0].equalsIgnoreCase("deleteworld") || args[0].equalsIgnoreCase("delworld"))) {
@@ -210,12 +214,14 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         sender.sendMessage(ChatColor.RED + "All players must leave " + ChatColor.WHITE + args[1] + ChatColor.RED + " to delete it!");
                         return true;
                     } else {
-                        getServer().unloadWorld(getServer().getWorld(args[1]), false);
+                        World world = getServer().getWorld(args[1]);
+                        getServer().unloadWorld(world, false);
                         sender.sendMessage(ChatColor.GOLD + "Deleting '" + ChatColor.WHITE + args[1] + ChatColor.GOLD + "'!");
                         getServer().broadcastMessage(ChatColor.LIGHT_PURPLE + "A world is collapsing!");
                         getServer().broadcastMessage(ChatColor.LIGHT_PURPLE + "You may experience some lag while we tidy it!");
-                        delete(getWorldDataFolder(args[1]));
-                        portalConfig.set(args[1], null);
+                        portalConfig.set(world.getName(), null);
+                        delete(getWorldDataFolder(world.getName()));
+                        savePortals();
                         return true;
                     }
                 } else if (args[0].equalsIgnoreCase("setdest")) {
@@ -265,6 +271,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     }
                     destinations.remove(args[1].toLowerCase());
                     config.set("destinations."+args[1].toLowerCase(), null);
+                    saveConfig();
                     sender.sendMessage(ChatColor.GOLD + "Destination " + ChatColor.WHITE + args[1] + ChatColor.GOLD + " deleted!");
                     return true;
                 } else if (args[0].equalsIgnoreCase("toggle")) {
@@ -501,6 +508,9 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     Player player = event.getPlayer();
                     if (!player.hasPermission("whooshingwell.destroy")) {
                         player.sendMessage(ChatColor.RED + "You do not have permission to break that sign!");
+                        Sign sign = (Sign)event.getBlock().getState();
+                        sign.setLine(0, sign.getLine(0));
+                        sign.update();
                         event.setCancelled(true);
                     } else {
                         Location signLocation = block.getLocation();
@@ -1007,15 +1017,15 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 if (!section.getName().contains("_nether") && !section.getName().contains("_the_end")) {
                     if (getServer().getWorld(section.getName()) == null) {
                         WorldCreator wc = makeWorld(section.getName(), null);
-                        getServer().createWorld(wc);
+                        Bukkit.createWorld(wc);
                     }
                 }
                 for (int i = 0; i < configKeys.length; i++) {
                     String key = configKeys[i].toString();
                     String destination = section.getString(key + ".destination");
-                    if (getServer().getWorld(destination) == null && destinations.get(destination.toLowerCase()) == null) {
+                    if (getServer().getWorld(destination) == null && !destinations.containsKey(destination.toLowerCase())) {
                         WorldCreator wc = makeWorld(destination, null);
-                        getServer().createWorld(wc);
+                        Bukkit.createWorld(wc);
                     }
                 }
             }
