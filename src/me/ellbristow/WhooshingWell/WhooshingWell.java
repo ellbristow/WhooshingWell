@@ -2,11 +2,9 @@ package me.ellbristow.WhooshingWell;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.logging.Level;
+import me.ellbristow.SimpleSpawn.SimpleSpawn;
 import org.bukkit.World.Environment;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -31,6 +29,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.material.Button;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class WhooshingWell extends JavaPlugin implements Listener {
@@ -372,9 +371,9 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     dropSign(signBlock);
                     return;
                 }
-                Block[] checkAirBlocks = getAir(signBlock.getLocation().getBlock(), getButtonDirection(signBlock), false);
+                Block[] checkAirBlocks = getAir(signBlock, false);
                 if (checkAirBlocks == null) {
-                    checkAirBlocks = getAir(signBlock.getLocation().getBlock(), getButtonDirection(signBlock), true);
+                    checkAirBlocks = getAir(signBlock, true);
                 }
                 if (checkAirBlocks != null) {
                     for (Block airBlock : checkAirBlocks) {
@@ -450,9 +449,9 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 
                 // GOOD TO GO!
                 String thisPortal = signBlock.getWorld().getName() + "." + signBlock.getX() + "_" + signBlock.getY() + "_" + signBlock.getZ();
-                Block[] airBlocks = getAir(signBlock, getButtonDirection(signBlock), false);
+                Block[] airBlocks = getAir(signBlock, false);
                 if (airBlocks == null) {
-                    airBlocks = getAir(signBlock, getButtonDirection(signBlock), true);
+                    airBlocks = getAir(signBlock, true);
                 }
                 String location = "";
                 for (Block block : airBlocks) {
@@ -461,6 +460,10 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                     }
                     location += block.getWorld().getName() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
                 }
+                event.setLine(0, ChatColor.GREEN + "WhooshingWell");
+                event.setLine(1, ChatColor.RED + worldName);
+                event.setLine(2, ChatColor.WHITE + "< Press Button");
+                event.setLine(3, ChatColor.WHITE + "and jump in!");
                 portalConfig.set(thisPortal + ".location",location);
                 portalConfig.set(thisPortal + ".destination", worldName);
                 savePortals();
@@ -478,9 +481,6 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                 if (isWWButton(block, true) || isWWButton(block, false) && player.hasPermission("whooshingwell.use")) {
                     String location = getWWFromButton(block);
                     if (location != null) {
-                        String[] locations = location.split(";");
-                        String[] loc0 = locations[0].split(":");
-                        Location loc = new Location(getServer().getWorld(loc0[0]), Integer.parseInt(loc0[1]), Integer.parseInt(loc0[2]), Integer.parseInt(loc0[3]));
                         toggleWW(block);
                     }
                 }
@@ -503,7 +503,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     public void onBlockBreak (BlockBreakEvent event) {
         if (!event.isCancelled()) {
             Block block = event.getBlock();
-            if (block.getTypeId() == 63 || block.getTypeId() == 68) {
+            if (block.getType().equals(Material.SIGN_POST) || block.getType().equals(Material.WALL_SIGN)) {
                 if (isWW(block.getLocation())) {
                     Player player = event.getPlayer();
                     if (!player.hasPermission("whooshingwell.destroy")) {
@@ -513,6 +513,12 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         sign.update();
                         event.setCancelled(true);
                     } else {
+                        if (getAir(block, true) != null) {
+                            Sign sign = (Sign)block.getState();
+                            org.bukkit.material.Sign sign2 = (org.bukkit.material.Sign)sign.getData();
+                            BlockFace face = sign2.getFacing();
+                            toggleWW( block.getRelative( rotate(face, 90), 3 ) );
+                        }
                         Location signLocation = block.getLocation();
                         String locString = signLocation.getWorld().getName() + "." + (int)Math.floor(signLocation.getX()) + "_" + (int)Math.floor(signLocation.getY()) + "_" + (int)Math.floor(signLocation.getZ()) + ".location";
                         String destString = signLocation.getWorld().getName() + "." + (int)Math.floor(signLocation.getX()) + "_" + (int)Math.floor(signLocation.getY()) + "_" + (int)Math.floor(signLocation.getZ()) + ".destination";
@@ -521,15 +527,12 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         portalConfig.set(destString, null);
                         portalConfig.set(section, null);
                         savePortals();
-                        if (getAir(block, getButtonDirection(block), true) != null) {
-                            toggleWW(block.getRelative(getButtonDirection(block), 3));
-                        }
                         player.sendMessage(ChatColor.GOLD + "Whooshing Well Deactivated!");
                     }
                 }
-            } else if (isWWStairs(block)) {
+            } else if (isWW(block.getLocation())) {
                 Player player = event.getPlayer();
-                player.sendMessage(ChatColor.RED + "Those stairs are protected by a Whooshing Well!");
+                player.sendMessage(ChatColor.RED + "That block is protected by a Whooshing Well!");
                 event.setCancelled(true);
             }
         }
@@ -586,22 +589,26 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         }
                     }
                 } else {
-                    String defaultWorld = getServer().getWorlds().get(0).getName();
-                    if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
-                        String fromWorld = fromLoc.getWorld().getName();
-                        if (!fromWorld.endsWith("_nether") && !fromWorld.endsWith("_the_end")) {
-                            World world = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_the_end");
-                            Location to = new Location(world,event.getFrom().getX(),event.getFrom().getY(),event.getFrom().getZ());
-                            event.setTo(to);
+                    if (fromLoc.getWorld().getEnvironment().equals(Environment.NORMAL)) {
+                        Location to = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_the_end").getSpawnLocation();
+                        event.setTo(to);
+                    } else if (fromLoc.getWorld().getEnvironment().equals(Environment.THE_END)) {
+                        Plugin ss = Bukkit.getPluginManager().getPlugin("SimpleSpawn");
+                        Location to;
+                        if (ss != null) {
+                            SimpleSpawn simplespawn = (SimpleSpawn)ss;
+                            to = simplespawn.getDefaultSpawn();
+                        } else {
+                            to = getServer().getWorlds().get(0).getSpawnLocation();
                         }
+                        event.setTo(to);
                     }
                 }
             } else if (cause == TeleportCause.NETHER_PORTAL) {
                 String defaultWorld = getServer().getWorlds().get(0).getName();
                 Location fromLoc = event.getFrom();
                 if (!defaultWorld.equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_nether").equals(fromLoc.getWorld().getName()) && !(defaultWorld + "_the_end").equals(fromLoc.getWorld().getName())) {
-                    String fromWorld = fromLoc.getWorld().getName();
-                    if (!fromWorld.endsWith("_nether") && !fromWorld.endsWith("_the_end")) {
+                    if (fromLoc.getWorld().getEnvironment().equals(Environment.NORMAL)) {
                         World world = getServer().getWorld(getServer().getWorlds().get(0).getName() + "_nether");
                         Location to = new Location(world,event.getFrom().getX(),event.getFrom().getY(),event.getFrom().getZ());
                         event.setTo(to);
@@ -639,37 +646,124 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     }
 
     private boolean isWW(Location loc) {
-        // Check for Sign Location
-        String portalCoords = loc.getWorld().getName() + "." + (int)loc.getX() + "_" + (int)loc.getY() + "_" + (int)loc.getZ();
-        if (portalConfig.getConfigurationSection(portalCoords) != null) {
-            return true;
-        } else if (loc.getBlock().getTypeId() == 63 || loc.getBlock().getTypeId() == 68) {
-            return false;
-        }
-        // Check for Portal Location
-        ConfigurationSection section = portalConfig.getConfigurationSection(loc.getWorld().getName());
-        if (section != null) {
-            Object[] configKeys = section.getKeys(false).toArray();
-            for (int i = 0; i < configKeys.length; i++) {
-                String key = configKeys[i].toString();
-                String locations = section.getString(key + ".location");
-                for (String location : locations.split(";")) {
-                    if (location.equals(loc.getWorld().getName() + ":" + (int)Math.floor(loc.getX()) + ":" + (int)Math.floor(loc.getY()) + ":" + (int)Math.floor(loc.getZ()))) {
-                        return true;
-                    }
+        
+        Set<String> worlds = portalConfig.getKeys(false);
+        
+        worldLoop:
+        for (String world: worlds) {
+            
+            Set<String> portals = portalConfig.getConfigurationSection(world).getKeys(false);
+            
+            for (String portal: portals) {
+                
+                String[] coords = portal.split("_");
+                int x = Integer.parseInt(coords[0]);
+                int y = Integer.parseInt(coords[1]);
+                int z = Integer.parseInt(coords[2]);
+                Block signBlock = Bukkit.getWorld(world).getBlockAt(x, y, z);
+                Sign sign = (Sign)signBlock.getState();
+                org.bukkit.material.Sign sign2 = (org.bukkit.material.Sign)sign.getData();
+                BlockFace face = sign2.getFacing();
+                
+                switch (face) {
+                    case NORTH:
+                        if (loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z //sign
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z //button
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z+4
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z+4
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z+4
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z+4
+                                ) {
+                            return true;
+                        }
+                        break;
+                    case EAST:
+                        if (loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z //sign
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z+3 //button
+                            || loc.getBlockX() == x-1 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x-2 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x-3 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x-4 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x-1 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x-2 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x-3 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x-4 && loc.getBlockY() == y && loc.getBlockZ() == z+1
+                            || loc.getBlockX() == x-1 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x-2 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x-3 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x-4 && loc.getBlockY() == y && loc.getBlockZ() == z+2
+                            || loc.getBlockX() == x-1 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x-2 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x-3 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                            || loc.getBlockX() == x-4 && loc.getBlockY() == y && loc.getBlockZ() == z+3
+                                ) {
+                            return true;
+                        }
+                        break;
+                    case SOUTH:
+                        if (loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z //sign
+                            || loc.getBlockX() == x-3 && loc.getBlockY() == y && loc.getBlockZ() == z //button
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z-4
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-4
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-4
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-4
+                                ) {
+                            return true;
+                        }
+                        break;
+                    case WEST:
+                        if (loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z //sign
+                            || loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z-3 //button
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x+4 && loc.getBlockY() == y && loc.getBlockZ() == z
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+4 && loc.getBlockY() == y && loc.getBlockZ() == z-1
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+4 && loc.getBlockY() == y && loc.getBlockZ() == z-2
+                            || loc.getBlockX() == x+1 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+2 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+3 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                            || loc.getBlockX() == x+4 && loc.getBlockY() == y && loc.getBlockZ() == z-3
+                                ) {
+                            return true;
+                        }
+                        break;
                 }
+                
             }
+            
         }
-        // Check Air for WW
-        Block[] airBlocks = getAir(loc.getBlock(), getButtonDirection(loc.getBlock()), false);
-        if (airBlocks == null) {
-            airBlocks = getAir(loc.getBlock(), getButtonDirection(loc.getBlock()), true);
-        }
-        if (airBlocks != null) {
-            if (isWW(airBlocks[0].getLocation())) {
-                return true;
-            }
-        }
+        
         return false;
     }
     
@@ -697,182 +791,130 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     }
     
     private boolean hasWellLayout(Block signBlock, boolean active) {
+        
+        Sign sign = (Sign)signBlock.getState();
+        org.bukkit.material.Sign sign2 = (org.bukkit.material.Sign)sign.getData();
+        BlockFace face = sign2.getFacing();
+        
         // BUTTON
-        BlockFace buttonDirection = getButtonDirection(signBlock);
-        if (buttonDirection == null) {
+        Block button = signBlock.getRelative(rotate(face, 90), 3);
+        if (!button.getType().equals(Material.STONE_BUTTON) && !button.getType().equals(Material.WOOD_BUTTON)) {
             return false;
         }
-        Block[] stairBlocks = getStairs(signBlock, buttonDirection);
-        if (stairBlocks == null) {
+        
+        // STAIRS
+        Block cornerBlock = signBlock.getRelative(rotate(face, 180));
+        Block stair1 = cornerBlock.getRelative(rotate(face, 90), 1);
+        Block stair2 = cornerBlock.getRelative(rotate(face, 90), 2);
+        Block stair3 = cornerBlock.getRelative(rotate(face, 180), 1);
+        Block stair4 = cornerBlock.getRelative(rotate(face, 90), 2);
+        Block stair5 = cornerBlock.getRelative(rotate(face, 90), 3).getRelative(rotate(face, 180), 1);
+        Block stair6 = cornerBlock.getRelative(rotate(face, 90), 3).getRelative(rotate(face, 180), 2);
+        Block stair7 = cornerBlock.getRelative(rotate(face, 180), 3).getRelative(rotate(face, 90), 1);
+        Block stair8 = cornerBlock.getRelative(rotate(face, 180), 3).getRelative(rotate(face, 90), 2);
+        if (!isStairs(stair1) || !isStairs(stair2) || !isStairs(stair3) || !isStairs(stair4) || !isStairs(stair5) || !isStairs(stair6) || !isStairs(stair7) || !isStairs(stair8)) {
             return false;
         }
-        Block[] airBlocks = getAir(signBlock, buttonDirection, active);
-        if (airBlocks == null) {
+        
+        // AIR
+        Block air1 = cornerBlock.getRelative(rotate(face, 90), 1).getRelative(rotate(face, 180), 1);
+        Block air2 = cornerBlock.getRelative(rotate(face, 90), 1).getRelative(rotate(face, 180), 2);
+        Block air3 = cornerBlock.getRelative(rotate(face, 90), 2).getRelative(rotate(face, 180), 1);
+        Block air4 = cornerBlock.getRelative(rotate(face, 90), 2).getRelative(rotate(face, 180), 2);
+        if ((!active && (!isAir(air1) || !isAir(air2) || !isAir(air3) || !isAir(air4))) || (active && (!isEnd(air1) || !isEnd(air2) || !isEnd(air3) || !isEnd(air4)))) {
             return false;
         }
+        
         return true;
+        
     }
     
-    private BlockFace getButtonDirection(Block signBlock) {
-        // Try NORTH
-        Block attempt = signBlock.getRelative(BlockFace.NORTH, 3);
-        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
-            return BlockFace.NORTH;
+    private Block[] getAir(Block signBlock, boolean active) {
+        
+        Sign sign = (Sign)signBlock.getState();
+        org.bukkit.material.Sign sign2 = (org.bukkit.material.Sign)sign.getData();
+        BlockFace face = sign2.getFacing();
+        
+        Block cornerBlock = signBlock.getRelative(rotate(face, 180), 1);
+        Block air1 = cornerBlock.getRelative(rotate(face, 90), 1).getRelative(rotate(face, 180), 1);
+        Block air2 = cornerBlock.getRelative(rotate(face, 90), 1).getRelative(rotate(face, 180), 2);
+        Block air3 = cornerBlock.getRelative(rotate(face, 90), 2).getRelative(rotate(face, 180), 1);
+        Block air4 = cornerBlock.getRelative(rotate(face, 90), 2).getRelative(rotate(face, 180), 2);
+        if ((!active && isAir(air1) && isAir(air2) && isAir(air3) && isAir(air4)) || (active && isEnd(air1) && isEnd(air2) & isEnd(air3) && isEnd(air4))) {
+            Block[] airBlocks = {air1,air2,air3,air4};
+            return airBlocks;
         }
-        // Try SOUTH
-        attempt = signBlock.getRelative(BlockFace.SOUTH, 3);
-        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
-            return BlockFace.SOUTH;
-        }
-        // Try EAST
-        attempt = signBlock.getRelative(BlockFace.EAST, 3);
-        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
-            return BlockFace.EAST;
-        }
-        // Try WEST
-        attempt = signBlock.getRelative(BlockFace.WEST, 3);
-        if (attempt.getType() == Material.STONE_BUTTON || attempt.getType() == Material.WOOD_BUTTON) {
-            return BlockFace.WEST;
-        }
+        
         return null;
     }
     
-    private Block[] getStairs(Block signBlock, BlockFace buttonDirection) {
-        if (buttonDirection == BlockFace.NORTH) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.EAST, 1);
-            Block stair1 = cornerBlock.getRelative(BlockFace.NORTH, 1);
-            Block stair2 = cornerBlock.getRelative(BlockFace.NORTH, 2);
-            Block stair3 = cornerBlock.getRelative(BlockFace.EAST, 1);
-            Block stair4 = cornerBlock.getRelative(BlockFace.EAST, 2);
-            Block stair5 = cornerBlock.getRelative(BlockFace.NORTH, 3).getRelative(BlockFace.EAST, 1);
-            Block stair6 = cornerBlock.getRelative(BlockFace.NORTH, 3).getRelative(BlockFace.EAST, 2);
-            Block stair7 = cornerBlock.getRelative(BlockFace.EAST, 3).getRelative(BlockFace.NORTH, 1);
-            Block stair8 = cornerBlock.getRelative(BlockFace.EAST, 3).getRelative(BlockFace.NORTH, 2);
-            if (isStairs(stair1) && isStairs(stair2) && isStairs(stair3) && isStairs(stair4) && isStairs(stair5) && isStairs(stair6) && isStairs(stair7) && isStairs(stair8)) {
-                Block[] allStairs = {stair1, stair2, stair3, stair4, stair5, stair6, stair7, stair8};
-                return allStairs;
-            } else {
-                return null;
-            }
-        } else if (buttonDirection == BlockFace.SOUTH) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.WEST, 1);
-            Block stair1 = cornerBlock.getRelative(BlockFace.SOUTH, 1);
-            Block stair2 = cornerBlock.getRelative(BlockFace.SOUTH, 2);
-            Block stair3 = cornerBlock.getRelative(BlockFace.WEST, 1);
-            Block stair4 = cornerBlock.getRelative(BlockFace.WEST, 2);
-            Block stair5 = cornerBlock.getRelative(BlockFace.SOUTH, 3).getRelative(BlockFace.WEST, 1);
-            Block stair6 = cornerBlock.getRelative(BlockFace.SOUTH, 3).getRelative(BlockFace.WEST, 2);
-            Block stair7 = cornerBlock.getRelative(BlockFace.WEST, 3).getRelative(BlockFace.SOUTH, 1);
-            Block stair8 = cornerBlock.getRelative(BlockFace.WEST, 3).getRelative(BlockFace.SOUTH, 2);
-            if (isStairs(stair1) && isStairs(stair2) && isStairs(stair3) && isStairs(stair4) && isStairs(stair5) && isStairs(stair6) && isStairs(stair7) && isStairs(stair8)) {
-                Block[] allStairs = {stair1, stair2, stair3, stair4, stair5, stair6, stair7, stair8};
-                return allStairs;
-            } else {
-                return null;
-            }
-        } else if (buttonDirection == BlockFace.EAST) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.SOUTH, 1);
-            Block stair1 = cornerBlock.getRelative(BlockFace.EAST, 1);
-            Block stair2 = cornerBlock.getRelative(BlockFace.EAST, 2);
-            Block stair3 = cornerBlock.getRelative(BlockFace.SOUTH, 1);
-            Block stair4 = cornerBlock.getRelative(BlockFace.SOUTH, 2);
-            Block stair5 = cornerBlock.getRelative(BlockFace.EAST, 3).getRelative(BlockFace.SOUTH, 1);
-            Block stair6 = cornerBlock.getRelative(BlockFace.EAST, 3).getRelative(BlockFace.SOUTH, 2);
-            Block stair7 = cornerBlock.getRelative(BlockFace.SOUTH, 3).getRelative(BlockFace.EAST, 1);
-            Block stair8 = cornerBlock.getRelative(BlockFace.SOUTH, 3).getRelative(BlockFace.EAST, 2);
-            if (isStairs(stair1) && isStairs(stair2) && isStairs(stair3) && isStairs(stair4) && isStairs(stair5) && isStairs(stair6) && isStairs(stair7) && isStairs(stair8)) {
-                Block[] allStairs = {stair1, stair2, stair3, stair4, stair5, stair6, stair7, stair8};
-                return allStairs;
-            } else {
-                return null;
-            }
-        }else if (buttonDirection == BlockFace.WEST) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.NORTH, 1);
-            Block stair1 = cornerBlock.getRelative(BlockFace.WEST, 1);
-            Block stair2 = cornerBlock.getRelative(BlockFace.WEST, 2);
-            Block stair3 = cornerBlock.getRelative(BlockFace.NORTH, 1);
-            Block stair4 = cornerBlock.getRelative(BlockFace.NORTH, 2);
-            Block stair5 = cornerBlock.getRelative(BlockFace.WEST, 3).getRelative(BlockFace.NORTH, 1);
-            Block stair6 = cornerBlock.getRelative(BlockFace.WEST, 3).getRelative(BlockFace.NORTH, 2);
-            Block stair7 = cornerBlock.getRelative(BlockFace.NORTH, 3).getRelative(BlockFace.WEST, 1);
-            Block stair8 = cornerBlock.getRelative(BlockFace.NORTH, 3).getRelative(BlockFace.WEST, 2);
-            if (isStairs(stair1) && isStairs(stair2) && isStairs(stair3) && isStairs(stair4) && isStairs(stair5) && isStairs(stair6) && isStairs(stair7) && isStairs(stair8)) {
-                Block[] allStairs = {stair1, stair2, stair3, stair4, stair5, stair6, stair7, stair8};
-                return allStairs;
-            } else {
-                return null;
-            }
+    private BlockFace rotate(BlockFace face, int degrees) {
+        switch (face) {
+            case NORTH:
+                if (degrees <45) {
+                    return face;
+                } else if (degrees < 135) {
+                    return BlockFace.EAST;
+                }  else if (degrees < 225) {
+                    return BlockFace.SOUTH;
+                } else if (degrees < 315) {
+                    return BlockFace.WEST;
+                }
+                break;
+            case EAST:
+                if (degrees <45) {
+                    return face;
+                } else if (degrees < 135) {
+                    return BlockFace.SOUTH;
+                }  else if (degrees < 225) {
+                    return BlockFace.WEST;
+                } else if (degrees < 315) {
+                    return BlockFace.NORTH;
+                }
+                break;
+            case SOUTH:
+                if (degrees <45) {
+                    return face;
+                } else if (degrees < 135) {
+                    return BlockFace.WEST;
+                }  else if (degrees < 225) {
+                    return BlockFace.NORTH;
+                } else if (degrees < 315) {
+                    return BlockFace.EAST;
+                }
+                break;
+            case WEST:
+                if (degrees <45) {
+                    return face;
+                } else if (degrees < 135) {
+                    return BlockFace.NORTH;
+                }  else if (degrees < 225) {
+                    return BlockFace.EAST;
+                } else if (degrees < 315) {
+                    return BlockFace.SOUTH;
+                }
+                break;
         }
-        return null;
-    }
-    
-    private Block[] getAir(Block signBlock, BlockFace buttonDirection, boolean active) {
-        if (buttonDirection == BlockFace.NORTH) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.EAST, 1);
-            Block air1 = cornerBlock.getRelative(BlockFace.NORTH, 1).getRelative(BlockFace.EAST, 1);
-            Block air2 = cornerBlock.getRelative(BlockFace.NORTH, 1).getRelative(BlockFace.EAST, 2);
-            Block air3 = cornerBlock.getRelative(BlockFace.NORTH, 2).getRelative(BlockFace.EAST, 1);
-            Block air4 = cornerBlock.getRelative(BlockFace.NORTH, 2).getRelative(BlockFace.EAST, 2);
-            if ((!active && isAir(air1) && isAir(air2) && isAir(air3) && isAir(air4)) || (active && isEnd(air1) && isEnd(air2) & isEnd(air3) && isEnd(air4))) {
-                Block[] airBlocks = {air1,air2,air3,air4};
-                return airBlocks;
-            }
-        } else if (buttonDirection == BlockFace.SOUTH) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.WEST, 1);
-            Block air1 = cornerBlock.getRelative(BlockFace.SOUTH, 1).getRelative(BlockFace.WEST, 1);
-            Block air2 = cornerBlock.getRelative(BlockFace.SOUTH, 1).getRelative(BlockFace.WEST, 2);
-            Block air3 = cornerBlock.getRelative(BlockFace.SOUTH, 2).getRelative(BlockFace.WEST, 1);
-            Block air4 = cornerBlock.getRelative(BlockFace.SOUTH, 2).getRelative(BlockFace.WEST, 2);
-            if ((!active && isAir(air1) && isAir(air2) && isAir(air3) && isAir(air4)) || (active && isEnd(air1) && isEnd(air2) & isEnd(air3) && isEnd(air4))) {
-                Block[] airBlocks = {air1,air2,air3,air4};
-                return airBlocks;
-            }
-        } else if (buttonDirection == BlockFace.EAST) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.SOUTH, 1);
-            Block air1 = cornerBlock.getRelative(BlockFace.EAST, 1).getRelative(BlockFace.SOUTH, 1);
-            Block air2 = cornerBlock.getRelative(BlockFace.EAST, 1).getRelative(BlockFace.SOUTH, 2);
-            Block air3 = cornerBlock.getRelative(BlockFace.EAST, 2).getRelative(BlockFace.SOUTH, 1);
-            Block air4 = cornerBlock.getRelative(BlockFace.EAST, 2).getRelative(BlockFace.SOUTH, 2);
-            if ((!active && isAir(air1) && isAir(air2) && isAir(air3) && isAir(air4)) || (active && isEnd(air1) && isEnd(air2) & isEnd(air3) && isEnd(air4))) {
-                Block[] airBlocks = {air1,air2,air3,air4};
-                return airBlocks;
-            }
-        } else if (buttonDirection == BlockFace.WEST) {
-            Block cornerBlock = signBlock.getRelative(BlockFace.NORTH, 1);
-            Block air1 = cornerBlock.getRelative(BlockFace.WEST, 1).getRelative(BlockFace.NORTH, 1);
-            Block air2 = cornerBlock.getRelative(BlockFace.WEST, 1).getRelative(BlockFace.NORTH, 2);
-            Block air3 = cornerBlock.getRelative(BlockFace.WEST, 2).getRelative(BlockFace.NORTH, 1);
-            Block air4 = cornerBlock.getRelative(BlockFace.WEST, 2).getRelative(BlockFace.NORTH, 2);
-            if ((!active && isAir(air1) && isAir(air2) && isAir(air3) && isAir(air4)) || (active && isEnd(air1) && isEnd(air2) & isEnd(air3) && isEnd(air4))) {
-                Block[] airBlocks = {air1,air2,air3,air4};
-                return airBlocks;
-            }
-        }
-        return null;
-    }
-    
-    private boolean isWWStairs(Block stairBlock) {
-        if (isWW(stairBlock.getRelative(BlockFace.NORTH).getLocation()) || isWW(stairBlock.getRelative(BlockFace.EAST).getLocation()) || isWW(stairBlock.getRelative(BlockFace.SOUTH).getLocation()) || isWW(stairBlock.getRelative(BlockFace.WEST).getLocation())) {
-            return true;
-        }
-        return false;
+        return face;
     }
     
     private void dropSign(Block sign) {
-        sign.setTypeId(0);
-        sign.getWorld().dropItem(sign.getLocation(), new ItemStack(323,1));
+        sign.breakNaturally();
     }
     
     private boolean isStairs(Block block) {
-        if (       block.getTypeId() == 53
-                || block.getTypeId() == 67
-                || block.getTypeId() == 108
-                || block.getTypeId() == 109
-                || block.getTypeId() == 114
-                || block.getTypeId() == 128
-                || block.getTypeId() == 134
-                || block.getTypeId() == 135
-                || block.getTypeId() == 136) {
+        if (       block.getType().equals(Material.WOOD_STAIRS)
+                || block.getType().equals(Material.COBBLESTONE_STAIRS)
+                || block.getType().equals(Material.BRICK_STAIRS)
+                || block.getType().equals(Material.SMOOTH_STAIRS)
+                || block.getType().equals(Material.NETHER_BRICK_STAIRS)
+                || block.getType().equals(Material.SANDSTONE_STAIRS)
+                || block.getType().equals(Material.SPRUCE_WOOD_STAIRS)
+                || block.getType().equals(Material.BIRCH_WOOD_STAIRS)
+                || block.getType().equals(Material.JUNGLE_WOOD_STAIRS)
+                || block.getType().equals(Material.QUARTZ_STAIRS)
+                || block.getType().equals(Material.ACACIA_STAIRS)
+                || block.getType().equals(Material.DARK_OAK_STAIRS)) {
             return true;
         }
         return false;
@@ -914,7 +956,7 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     
     private void toggleWW(Block block) {
         String locations = getWWFromButton(block);
-        if ("".equals(locations)) {
+        if (locations == null || "".equals(locations)) {
             return;
         }
         String[] locationArray = locations.split(";");
@@ -922,27 +964,27 @@ public class WhooshingWell extends JavaPlugin implements Listener {
         Location firstLocation = new Location(block.getWorld(), Integer.parseInt(firstLoc[1]), Integer.parseInt(firstLoc[2]), Integer.parseInt(firstLoc[3]));
         if (block.getWorld().getBlockAt(firstLocation).getType() == Material.AIR || block.getWorld().getBlockAt(firstLocation).getType() == null) {
             // Turn On
-            block.getWorld().getBlockAt(firstLocation).setTypeId(119);
+            block.getWorld().getBlockAt(firstLocation).setType(Material.ENDER_PORTAL);
             String[] thisLoc = locationArray[1].split(":");
             Location secondLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(secondLocation).setTypeId(119);
+            block.getWorld().getBlockAt(secondLocation).setType(Material.ENDER_PORTAL);
             thisLoc = locationArray[2].split(":");
             Location thirdLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(thirdLocation).setTypeId(119);
+            block.getWorld().getBlockAt(thirdLocation).setType(Material.ENDER_PORTAL);
             thisLoc = locationArray[3].split(":");
             Location fourthLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(fourthLocation).setTypeId(119);
+            block.getWorld().getBlockAt(fourthLocation).setType(Material.ENDER_PORTAL);
         } else {
-            block.getWorld().getBlockAt(firstLocation).setTypeId(0);
+            block.getWorld().getBlockAt(firstLocation).setType(Material.AIR);
             String[] thisLoc = locationArray[1].split(":");
             Location secondLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(secondLocation).setTypeId(0);
+            block.getWorld().getBlockAt(secondLocation).setType(Material.AIR);
             thisLoc = locationArray[2].split(":");
             Location thirdLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(thirdLocation).setTypeId(0);
+            block.getWorld().getBlockAt(thirdLocation).setType(Material.AIR);
             thisLoc = locationArray[3].split(":");
             Location fourthLocation = new Location(block.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-            block.getWorld().getBlockAt(fourthLocation).setTypeId(0);
+            block.getWorld().getBlockAt(fourthLocation).setType(Material.AIR);
         }
     }
     
@@ -958,16 +1000,16 @@ public class WhooshingWell extends JavaPlugin implements Listener {
                         String[] locationArray = locations.split(";");
                         String[] firstLoc = locationArray[0].split(":");
                         Location firstLocation = new Location(loc.getWorld(), Integer.parseInt(firstLoc[1]), Integer.parseInt(firstLoc[2]), Integer.parseInt(firstLoc[3]));
-                        loc.getWorld().getBlockAt(firstLocation).setTypeId(0);
+                        loc.getWorld().getBlockAt(firstLocation).setType(Material.AIR);
                         String[] thisLoc = locationArray[1].split(":");
                         Location secondLocation = new Location(loc.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-                        loc.getWorld().getBlockAt(secondLocation).setTypeId(0);
+                        loc.getWorld().getBlockAt(secondLocation).setType(Material.AIR);
                         thisLoc = locationArray[2].split(":");
                         Location thirdLocation = new Location(loc.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-                        loc.getWorld().getBlockAt(thirdLocation).setTypeId(0);
+                        loc.getWorld().getBlockAt(thirdLocation).setType(Material.AIR);
                         thisLoc = locationArray[3].split(":");
                         Location fourthLocation = new Location(loc.getWorld(), Integer.parseInt(thisLoc[1]), Integer.parseInt(thisLoc[2]), Integer.parseInt(thisLoc[3]));
-                        loc.getWorld().getBlockAt(fourthLocation).setTypeId(0);
+                        loc.getWorld().getBlockAt(fourthLocation).setType(Material.AIR);
                         return;
                     }
                 }
@@ -977,22 +1019,8 @@ public class WhooshingWell extends JavaPlugin implements Listener {
     
     private String getWWFromButton(Block block) {
         BlockFace direction = ((Button)block.getState().getData()).getAttachedFace();
-        Block signLoc;
-        switch (direction) {
-            case NORTH:
-                signLoc = block.getRelative(BlockFace.EAST, 3);
-                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
-            case EAST:
-                signLoc = block.getRelative(BlockFace.SOUTH, 3);
-                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
-            case SOUTH:
-                signLoc = block.getRelative(BlockFace.WEST, 3);
-                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
-            case WEST:
-                signLoc = block.getRelative(BlockFace.NORTH, 3);
-                return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
-        }
-        return "";
+        Block signLoc = block.getRelative(rotate(direction, 90), 3);
+        return portalConfig.getString(signLoc.getWorld().getName() + "." + signLoc.getX() + "_" + signLoc.getY() + "_" + signLoc.getZ() + ".location");
     }
     
     private boolean delete(File folder) {
